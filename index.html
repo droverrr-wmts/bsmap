@@ -277,6 +277,43 @@
             color: #555;
         }
 
+        .station-summary {
+            cursor: pointer;
+        }
+
+        .station-compact-line {
+            font-weight: bold;
+            font-size: 12px;
+            line-height: 1.25;
+            margin-bottom: 4px;
+        }
+
+        .station-compact-address {
+            font-size: 11px;
+            line-height: 1.25;
+            color: #333;
+            white-space: normal;
+            overflow-wrap: anywhere;
+        }
+
+        .station-editor {
+            display: none;
+            margin-top: 6px;
+        }
+
+        .station-item.selected .station-editor {
+            display: block;
+        }
+
+        .station-item.selected {
+            border-color: #2f7df6;
+            box-shadow: 0 0 0 2px rgba(47, 125, 246, 0.25);
+        }
+
+        .station-list-has-selection .station-item:not(.selected) {
+            opacity: 0.48;
+        }
+
         /* --- MOBILE OPTIMIZATION --- */
         @media (max-width: 900px) {
             #sidebar {
@@ -477,6 +514,19 @@
             .station-item {
                 margin-bottom: 7px;
                 padding: 6px;
+            }
+            .station-compact-line {
+                font-size: 11px;
+                line-height: 1.15;
+                margin-bottom: 3px;
+            }
+            .station-compact-address {
+                font-size: 10px;
+                line-height: 1.15;
+                display: -webkit-box;
+                -webkit-line-clamp: 2;
+                -webkit-box-orient: vertical;
+                overflow: hidden;
             }
             .station-item label {
                 display: inline-block;
@@ -1664,6 +1714,7 @@
         };
 
         const stations = [];
+        let selectedStationIndex = null;
 
         // Допоміжні функції
         const calculatePopupPosition = (lat, lng, azimuth) => {
@@ -1841,6 +1892,10 @@
 
             // Додаємо маркер
             station.marker = L.marker([lat, lng], { draggable: true, icon: createCustomIcon(color, station.markerSize) }).addTo(map);
+            station.marker.on('click', () => {
+                const markerIndex = stations.indexOf(station);
+                if (markerIndex !== -1) selectStation(markerIndex, false);
+            });
             setupStationDragging(station);
 
             // Додаємо полігон
@@ -1884,6 +1939,8 @@
 
             // When drag ends, update the station list to reflect new position
             station.marker.on('dragend', () => {
+                const markerIndex = stations.indexOf(station);
+                if (markerIndex !== -1) selectedStationIndex = markerIndex;
                 isRecentlyDragged = true; // Set flag indicating recent drag activity
                 setTimeout(() => {
                     isRecentlyDragged = false;
@@ -1948,27 +2005,49 @@
             }, 900);
         }
 
+        function getCompactStationTitle(station) {
+            const metadata = station.metadata || {};
+            const parts = [
+                metadata.operator || '',
+                metadata.phone || '',
+                metadata.lac || metadata.cid ? `LAC/CID ${metadata.lac || '-'} / ${metadata.cid || '-'}` : '',
+                station.azimuth !== '' && station.azimuth !== undefined && station.azimuth !== null ? `Аз. ${station.azimuth}` : ''
+            ].filter(Boolean);
+            return parts.length ? parts.join(' • ') : `БС ${station.lat.toFixed(6)}, ${station.lng.toFixed(6)}`;
+        }
+
+        function selectStation(index, focusMap = true) {
+            if (!stations[index]) return;
+            selectedStationIndex = index;
+            updateStationList();
+            if (focusMap) focusStationOnMap(index);
+        }
+
         function createStationListItem(station, index) {
             const item = document.createElement('div');
-            item.className = 'station-item';
-            const metadataLines = getMetadataLines(station.metadata || {});
-            const metadataHtml = metadataLines.length
-                ? `<div class="station-metadata" data-index="${index}" title="Перейти до точки на мапі" style="font-size:11px;color:#444;background:#f4f6f8;border:1px solid #e1e5ea;border-radius:4px;padding:6px;margin:6px 0;">${metadataLines.map(line => `<div>${escapeHtml(line)}</div>`).join('')}</div>`
-                : '';
+            item.className = `station-item${selectedStationIndex === index ? ' selected' : ''}`;
+            item.dataset.index = index;
+            const compactTitle = escapeHtml(getCompactStationTitle(station));
+            const compactAddress = escapeHtml(station.address || 'Адреса не вказана');
             item.innerHTML = `
-                ${metadataHtml}
-                <textarea data-index="${index}" class="address-input" style="width:100%;min-height:36px;resize:vertical;">${escapeHtml(station.address || '')}</textarea>
-                <label>Радіус (м):</label>
-                <input type="number" value="${station.radius}" data-index="${index}" class="radius-input" />
-                <label>Азимут (0-360):</label>
-                <input type="number" min="0" max="360" value="${station.azimuth}" data-index="${index}" class="azimuth-input" />
-                <label>Ширина (0-360):</label>
-                <input type="number" value="${station.width}" data-index="${index}" class="width-input" />
-                <label>Колір:</label>
-                <input type="color" value="${station.color}" data-index="${index}" class="color-input" />
-                <label>Розмір маркера: <span class="marker-size-value">${station.markerSize || DEFAULT_CONFIG.MARKER_SIZE}</span> px</label>
-                <input type="range" min="0" max="8" step="1" value="${getMarkerSizeIndex(station.markerSize || DEFAULT_CONFIG.MARKER_SIZE)}" data-index="${index}" class="marker-size-input" style="width:100%;">
-                <button data-index="${index}" class="delete-button">Видалити</button>
+                <div class="station-summary" data-index="${index}" title="Перейти до точки на мапі">
+                    <div class="station-compact-line">${compactTitle}</div>
+                    <div class="station-compact-address">${compactAddress}</div>
+                </div>
+                <div class="station-editor">
+                    <textarea data-index="${index}" class="address-input" style="width:100%;min-height:36px;resize:vertical;">${escapeHtml(station.address || '')}</textarea>
+                    <label>Радіус (м):</label>
+                    <input type="number" value="${station.radius}" data-index="${index}" class="radius-input" />
+                    <label>Азимут (0-360):</label>
+                    <input type="number" min="0" max="360" value="${station.azimuth}" data-index="${index}" class="azimuth-input" />
+                    <label>Ширина (0-360):</label>
+                    <input type="number" value="${station.width}" data-index="${index}" class="width-input" />
+                    <label>Колір:</label>
+                    <input type="color" value="${station.color}" data-index="${index}" class="color-input" />
+                    <label>Розмір маркера: <span class="marker-size-value">${station.markerSize || DEFAULT_CONFIG.MARKER_SIZE}</span> px</label>
+                    <input type="range" min="0" max="8" step="1" value="${getMarkerSizeIndex(station.markerSize || DEFAULT_CONFIG.MARKER_SIZE)}" data-index="${index}" class="marker-size-input" style="width:100%;">
+                    <button data-index="${index}" class="delete-button">Видалити</button>
+                </div>
             `;
             return item;
         }
@@ -1980,6 +2059,7 @@
             });
             DOM.stationList.innerHTML = ''; // Clear existing list
             DOM.stationList.appendChild(fragment); // Append all at once
+            DOM.stationList.classList.toggle('station-list-has-selection', selectedStationIndex !== null);
         }
 
         // Обробники подій
@@ -2130,18 +2210,23 @@
         document.getElementById('station-list').addEventListener('click', (e) => {
             e.stopPropagation(); // Prevent event bubbling to map
 
-            const metadataBlock = e.target.closest('.station-metadata');
-            if (metadataBlock) {
-                focusStationOnMap(parseInt(metadataBlock.dataset.index, 10));
+            const summaryBlock = e.target.closest('.station-summary');
+            if (summaryBlock) {
+                selectStation(parseInt(summaryBlock.dataset.index, 10), true);
                 return;
             }
             
             if (e.target.classList.contains('delete-button')) {
-                const index = e.target.dataset.index;
+                const index = parseInt(e.target.dataset.index, 10);
                 map.removeLayer(stations[index].marker);
                 map.removeLayer(stations[index].polygon);
                 map.removeLayer(stations[index].popupMarker);
                 stations.splice(index, 1);
+                if (selectedStationIndex === index) {
+                    selectedStationIndex = null;
+                } else if (selectedStationIndex !== null && selectedStationIndex > index) {
+                    selectedStationIndex -= 1;
+                }
                 updateStationList();
             }
         });
