@@ -328,7 +328,7 @@
                 left: 0;
                 right: 0;
                 top: auto;
-                bottom: 56px;
+                bottom: 44px;
                 width: auto;
                 height: 48dvh;
                 max-height: none;
@@ -346,7 +346,7 @@
                 transition: transform 0.25s ease, height 0.25s ease;
             }
             #sidebar.collapsed {
-                transform: translateY(calc(100% + 64px));
+                transform: translateY(calc(100% + 52px));
                 height: 48dvh;
                 width: auto;
             }
@@ -371,8 +371,8 @@
                 bottom: 0;
                 width: 100%;
                 justify-content: space-around;
-                gap: 5px;
-                padding: 7px 8px calc(7px + env(safe-area-inset-bottom));
+                gap: 6px;
+                padding: 5px 8px calc(5px + env(safe-area-inset-bottom));
                 background: rgba(255,255,255,0.94);
                 box-shadow: 0 -2px 12px rgba(0,0,0,0.12);
                 box-sizing: border-box;
@@ -380,9 +380,9 @@
             }
             #button-container button {
                 flex: 1;
-                min-height: 42px;
-                font-size: 13px;
-                padding: 8px 6px;
+                min-height: 34px;
+                font-size: 12px;
+                padding: 6px 6px;
                 margin: 0;
             }
             .save-load-buttons {
@@ -435,6 +435,10 @@
             .station-metadata {
                 font-size: 11px !important;
                 line-height: 1.35;
+                cursor: pointer;
+            }
+            .station-metadata:active {
+                background: #e8eef7 !important;
             }
             .info-box {
                 min-width: 100px;
@@ -1861,12 +1865,30 @@
             }
         }
 
+        function focusStationOnMap(index) {
+            const station = stations[index];
+            if (!station) return;
+
+            map.setView([station.lat, station.lng], Math.max(map.getZoom(), 16), { animate: true });
+            if (window.matchMedia('(max-width: 600px)').matches && !DOM.sidebar.classList.contains('collapsed')) {
+                DOM.sidebar.classList.add('collapsed');
+                DOM.toggleSidebar.textContent = 'Розгорнути панель';
+                setTimeout(() => map.invalidateSize(), 300);
+            }
+
+            const originalIcon = station.marker.options.icon;
+            station.marker.setIcon(createCustomIcon(station.color, Math.max((station.markerSize || DEFAULT_CONFIG.MARKER_SIZE) + 10, 28)));
+            setTimeout(() => {
+                station.marker.setIcon(originalIcon);
+            }, 900);
+        }
+
         function createStationListItem(station, index) {
             const item = document.createElement('div');
             item.className = 'station-item';
             const metadataLines = getMetadataLines(station.metadata || {});
             const metadataHtml = metadataLines.length
-                ? `<div class="station-metadata" style="font-size:11px;color:#444;background:#f4f6f8;border:1px solid #e1e5ea;border-radius:4px;padding:6px;margin:6px 0;">${metadataLines.map(line => `<div>${escapeHtml(line)}</div>`).join('')}</div>`
+                ? `<div class="station-metadata" data-index="${index}" title="Перейти до точки на мапі" style="font-size:11px;color:#444;background:#f4f6f8;border:1px solid #e1e5ea;border-radius:4px;padding:6px;margin:6px 0;">${metadataLines.map(line => `<div>${escapeHtml(line)}</div>`).join('')}</div>`
                 : '';
             item.innerHTML = `
                 ${metadataHtml}
@@ -2042,6 +2064,12 @@
 
         document.getElementById('station-list').addEventListener('click', (e) => {
             e.stopPropagation(); // Prevent event bubbling to map
+
+            const metadataBlock = e.target.closest('.station-metadata');
+            if (metadataBlock) {
+                focusStationOnMap(parseInt(metadataBlock.dataset.index, 10));
+                return;
+            }
             
             if (e.target.classList.contains('delete-button')) {
                 const index = e.target.dataset.index;
