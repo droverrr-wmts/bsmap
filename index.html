@@ -1,0 +1,2341 @@
+<!DOCTYPE html>
+<html lang="uk">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Редактор базових станцій — тестова версія</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <style>
+        html, body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            overflow: hidden; /* Prevent scrolling */
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            display: flex;
+            height: 100vh;
+            font-family: Tahoma, sans-serif;
+            font-size: 12px;
+        }
+
+        #map {
+            flex: 1;
+            min-width: 0;
+            height: 100%; /* Ensure the map occupies full height */
+        }
+
+        #sidebar {
+            height: 100vh;
+            width: 300px;
+            background: #f4f4f4;
+            padding: 10px;
+            overflow-y: auto;
+            border-right: 1px solid #ccc;
+            transition: transform 0.3s ease, width 0.3s ease;
+            font-family: Tahoma, sans-serif;
+            z-index: 1001;
+        }
+
+        #sidebar.collapsed {
+            transform: translateX(-100%);
+            width: 0;
+            padding: 0;
+            border-right: none;
+        }
+
+        #button-container {
+            position: absolute;
+            bottom: 10px;
+            left: 10px;
+            z-index: 1000;
+            display: flex;
+            flex-direction: row;
+            gap: 10px;
+        }
+        
+        #button-container button {
+            padding: 5px 10px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 12px;
+            font-family: Tahoma, sans-serif;
+        }
+
+        #toggle-sidebar {
+            background: #007bff;
+            color: white;
+        }
+
+        #delete-all {
+            background: #dc3545;
+            color: white;
+        }
+
+        .station-item {
+            margin-bottom: 10px;
+            padding: 5px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            background: #fff;
+            font-family: Tahoma, sans-serif;
+            font-size: 12px;
+        }
+
+        .station-item input,
+        .station-item button {
+            margin: 5px 0;
+            font-size: 12px;
+        }
+
+        .leaflet-popup-content-wrapper {
+            background: rgba(255, 255, 255, 0.2);
+            border: none;
+            border-radius: 8px;
+            padding: 0;
+            cursor: move;
+            user-select: none;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+        }
+
+        .leaflet-popup-content {
+            font-size: 14px;
+            margin: 0;
+            cursor: move;
+            padding: 5px;
+        }
+
+        .leaflet-popup-tip-container {
+            display: none;
+        }
+
+        .info-box {
+            background: rgba(255, 255, 255, 0.2);
+            border: 1px solid #000;
+            border-radius: 8px;
+            padding: 5px;
+            cursor: move;
+            user-select: none;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+            font-size: 12px;
+            text-align: left;
+            min-width: 200px;
+            max-width: 300px;
+            z-index: 1000;
+            font-family: Tahoma, sans-serif;
+            font-weight: normal;
+            color: black;
+        }
+
+        .info-box-container {
+            z-index: 1000 !important;
+        }
+
+        .default-settings {
+            background: #fff;
+            padding: 10px;
+            margin-bottom: 15px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            font-size: 12px;
+        }
+
+        .default-settings h4 {
+            margin: 0 0 10px 0;
+            font-size: 14px;
+            text-align: center;
+        }
+
+        .setting-item {
+            margin-bottom: 8px;
+        }
+
+        .setting-item label {
+            display: block;
+            margin-bottom: 3px;
+            font-size: 12px;
+            font-family: Tahoma, sans-serif;
+        }
+
+        .setting-item input[type="number"],
+        .setting-item input[type="color"] {
+            width: 100%;
+            padding: 3px;
+            font-size: 12px;
+        }
+
+        .setting-item .checkbox-group {
+            display: flex;
+            gap: 15px;
+        }
+
+        .setting-item .checkbox-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        #sidebar h3 {
+            font-size: 16px;
+            text-align: center;
+        }
+
+        #sidebar h4 {
+            font-size: 14px;
+        }
+
+        .checkbox-item label {
+            font-size: 12px;
+        }
+
+        button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 8px 12px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 12px;
+            margin: 4px 2px;
+            cursor: pointer;
+            border-radius: 4px;
+            transition: background-color 0.3s;
+        }
+
+        button:hover {
+            background-color: #45a049;
+        }
+
+        .delete-button,
+        #delete-all {
+            background-color: #f44336;
+        }
+
+        .delete-button:hover,
+        #delete-all:hover {
+            background-color: #d32f2f;
+        }
+
+        input[type="text"],
+        input[type="number"] {
+            width: 100%;
+            padding: 6px 10px;
+            margin: 4px 0;
+            display: inline-block;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+
+        input[type="color"] {
+            width: 100%;
+            height: 30px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+
+        .station-item {
+            margin-bottom: 15px;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            background: #fff;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            transition: box-shadow 0.3s;
+        }
+
+        .station-item:hover {
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+        }
+
+        .station-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+            font-weight: bold;
+        }
+
+        .settings-group {
+            border: 1px solid #eee;
+            border-radius: 4px;
+            padding: 8px;
+            margin-bottom: 8px;
+            background-color: #f9f9f9;
+        }
+
+        .settings-group h5 {
+            margin: 0 0 8px 0;
+            font-size: 13px;
+            color: #555;
+        }
+
+        /* --- MOBILE OPTIMIZATION --- */
+        @media (max-width: 900px) {
+            #sidebar {
+                width: 220px;
+                min-width: 0;
+                font-size: 11px;
+                padding: 6px;
+            }
+            .default-settings,
+            .station-item {
+                font-size: 11px;
+                padding: 6px;
+            }
+            .info-box {
+                min-width: 120px;
+                max-width: 200px;
+                font-size: 11px;
+                padding: 4px;
+            }
+            #sidebar h3 {
+                font-size: 13px;
+            }
+            #sidebar h4 {
+                font-size: 12px;
+            }
+            .save-load-buttons button,
+            #button-container button {
+                font-size: 11px;
+                padding: 4px 7px;
+            }
+            input[type="text"],
+            input[type="number"] {
+                font-size: 11px;
+                padding: 4px 6px;
+            }
+            input[type="color"] {
+                height: 22px;
+            }
+        }
+
+        @media (max-width: 600px) {
+            body {
+                flex-direction: column;
+                font-size: 11px;
+            }
+            #sidebar {
+                position: absolute;
+                left: 0;
+                top: 0;
+                width: 100vw;
+                height: 60vh;
+                max-height: 70vw;
+                min-width: 0;
+                border-right: none;
+                border-bottom: 1px solid #ccc;
+                z-index: 1001;
+                background: #f4f4f4;
+                overflow-y: auto;
+                transition: transform 0.3s, height 0.3s, width 0.3s;
+            }
+            #sidebar.collapsed {
+                transform: translateY(-100%);
+                height: 0;
+                width: 100vw;
+            }
+            #map {
+                min-height: 40vh;
+                min-width: 0;
+            }
+            #button-container {
+                position: fixed;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                width: 100vw;
+                justify-content: space-around;
+                gap: 5px;
+                padding: 4px 0;
+                background: rgba(255,255,255,0.85);
+                z-index: 1002;
+            }
+            #button-container button {
+                font-size: 13px;
+                padding: 7px 10px;
+                margin: 0 2px;
+            }
+            .save-load-buttons {
+                flex-direction: column;
+                gap: 6px;
+                margin-bottom: 10px;
+            }
+            .save-load-buttons button {
+                margin: 0;
+                font-size: 12px;
+                padding: 7px 10px;
+            }
+            .search-container {
+                position: fixed !important;
+                top: 0 !important;
+                left: 0 !important;
+                right: 0 !important;
+                width: 100vw !important;
+                z-index: 1003 !important;
+                padding: 4px 2vw;
+                background: rgba(255,255,255,0.95);
+            }
+            #search-input {
+                font-size: 13px !important;
+                padding: 7px 8px !important;
+            }
+            #search-results {
+                font-size: 12px !important;
+                max-height: 40vh !important;
+            }
+            .info-box {
+                min-width: 100px;
+                max-width: 160px;
+                font-size: 10px;
+                padding: 3px;
+            }
+        }
+
+        @media (max-width: 400px) {
+            #sidebar {
+                font-size: 10px;
+                padding: 2px;
+            }
+            .default-settings,
+            .station-item {
+                font-size: 10px;
+                padding: 2px;
+            }
+            .info-box {
+                min-width: 80px;
+                max-width: 120px;
+                font-size: 9px;
+                padding: 2px;
+            }
+            #button-container button,
+            .save-load-buttons button {
+                font-size: 10px;
+                padding: 4px 4px;
+            }
+        }
+
+        /* Покращення стилів для інфобоксів */
+        .info-box {
+            background: rgba(255, 255, 255, 0.6);
+            border: 1px solid #000;
+            border-radius: 8px;
+            padding: 8px;
+            cursor: move;
+            user-select: none;
+            box-shadow: 0 3px 8px rgba(0, 0, 0, 0.2);
+            font-size: 12px;
+            text-align: left;
+            color: black;
+            min-width: 200px;
+            max-width: 300px;
+            z-index: 1000;
+            font-family: Tahoma, sans-serif;
+            font-weight: normal;
+            transition: box-shadow 0.3s;
+            line-height: normal;
+        }
+
+        .info-box:hover {
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+        }
+
+        .save-load-buttons {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 15px;
+        }
+
+        .save-load-buttons button {
+            flex: 1;
+            margin: 0 5px;
+            background-color: #2196F3;
+        }
+
+        .save-load-buttons button:hover {
+            background-color: #0b7dda;
+        }
+
+        #button-container {
+            margin-top: 10px;
+            display: flex;
+            gap: 10px;
+            justify-content: flex-start;
+        }
+
+        #button-container button {
+            padding: 5px 10px;
+            font-size: 12px;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        #geocode-indicator {
+            position: absolute;
+            top: 50%;
+            left: calc(50% + 150px);
+            transform: translate(-50%, -50%);
+            z-index: 1000;
+            display: none;
+            transition: left 0.3s ease;
+        }
+
+        @media (max-width: 900px) {
+            #geocode-indicator {
+                left: 50%;
+            }
+        }
+        @media (max-width: 600px) {
+            #geocode-indicator {
+                left: 50vw !important;
+                top: 60vh !important;
+                width: 40px;
+                height: 40px;
+            }
+        }
+        @media (max-width: 400px) {
+            #geocode-indicator {
+                width: 30px;
+                height: 30px;
+            }
+        }
+
+        .spinner {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .spinner div {
+            width: 10px;
+            height: 10px;
+            background-color: rgba(0, 0, 0, 0.7);
+            border-radius: 50%;
+            animation: bounce 1.5s infinite ease-in-out;
+        }
+
+        .spinner div:nth-child(1) {
+            animation-delay: -0.3s;
+        }
+
+        .spinner div:nth-child(2) {
+            animation-delay: -0.15s;
+        }
+
+        .spinner div:nth-child(3) {
+            animation-delay: 0s;
+        }
+
+        @keyframes bounce {
+            0%, 80%, 100% {
+                transform: scale(0);
+            }
+            40% {
+                transform: scale(1);
+            }
+        }
+
+        .spinner-circle {
+            position: relative;
+            width: 50px;
+            height: 50px;
+        }
+
+        .spinner-circle div {
+            position: absolute;
+            width: 8px;
+            height: 8px;
+            background-color: rgba(0, 0, 0, 0.7);
+            border-radius: 50%;
+            animation: spinner-circle 1.2s linear infinite;
+        }
+
+        .spinner-circle div:nth-child(1) {
+            top: 0;
+            left: 50%;
+            transform: translate(-50%, 0);
+            animation-delay: -1.1s;
+        }
+
+        .spinner-circle div:nth-child(2) {
+            top: 14%;
+            left: 85%;
+            transform: translate(-50%, -50%);
+            animation-delay: -1s;
+        }
+
+        .spinner-circle div:nth-child(3) {
+            top: 50%;
+            left: 100%;
+            transform: translate(-50%, -50%);
+            animation-delay: -0.9s;
+        }
+
+        .spinner-circle div:nth-child(4) {
+            top: 85%;
+            left: 85%;
+            transform: translate(-50%, -50%);
+            animation-delay: -0.8s;
+        }
+
+        .spinner-circle div:nth-child(5) {
+            top: 100%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            animation-delay: -0.7s;
+        }
+
+        .spinner-circle div:nth-child(6) {
+            top: 85%;
+            left: 14%;
+            transform: translate(-50%, -50%);
+            animation-delay: -0.6s;
+        }
+
+        .spinner-circle div:nth-child(7) {
+            top: 50%;
+            left: 0;
+            transform: translate(-50%, -50%);
+            animation-delay: -0.5s;
+        }
+
+        .spinner-circle div:nth-child(8) {
+            top: 14%;
+            left: 14%;
+            transform: translate(-50%, -50%);
+            animation-delay: -0.4s;
+        }
+
+        @keyframes spinner-circle {
+            0% {
+                transform: scale(1);
+                opacity: 1;
+            }
+            100% {
+                transform: scale(0.5);
+                opacity: 0.3;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div id="sidebar">
+        <h3>Редактор базових станцій<br><span style="font-size:11px;color:#6a1b9a;">тестова версія</span></h3>
+        <div class="default-settings">
+            <h4>Глобальні налаштування</h4>
+            <div class="setting-item">
+                <label>Розмір тексту (px):</label>
+                <input type="number" id="default-font-size" value="12" min="6" max="20">
+            </div>
+            <div class="setting-item">
+                <label>Колір азимутів:</label>
+                <input type="color" id="default-color" value="#000000">
+            </div>
+            <div class="setting-item">
+                <label>Розмір маркера: <span id="default-marker-size-value">17</span> px</label>
+                <input type="range" id="default-marker-size" min="0" max="8" step="1" value="2" style="width:100%;">
+            </div>
+            <div class="setting-item">
+                <label>Радіус азимутів (м):</label>
+                <input type="number" id="default-radius" value="700" min="100" max="90000" step="50">
+            </div>
+            <div class="setting-item">
+                <label>Ширина азимутів:</label>
+                <input type="number" id="default-width" value="120" min="30" max="360" step="5">
+            </div>
+            <div class="setting-item">
+                <label>Відступ інфобокса:</label>
+                <input type="number" id="default-popup-distance" value="250" min="50" max="500" step="10">
+            </div>
+            <div class="setting-item">
+                <label>Геокодувати нові станції:</label>
+                <div class="checkbox-item">
+                    <input type="checkbox" id="default-geocode" checked>
+                    <label for="default-geocode">Так</label>
+                </div>
+            </div>
+            <div class="setting-item">
+                <label>Стиль тексту:</label>
+                <div class="checkbox-group">
+                    <div class="checkbox-item">
+                        <input type="checkbox" id="default-bold">
+                        <label for="default-bold">Жирний</label>
+                    </div>
+                    <div class="checkbox-item">
+                        <input type="checkbox" id="default-italic">
+                        <label for="default-italic">Курсив</label>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div id="station-list"></div>
+    </div>
+    <div id="map">
+        <div id="button-container">
+            <button id="delete-all">Видалити все</button>
+            <button id="toggle-sidebar">Згорнути панель</button>
+        </div>
+    </div>
+    <div id="geocode-indicator">
+        <div class="spinner-circle">
+            <div></div>
+            <div></div>
+            <div></div>
+            <div></div>
+            <div></div>
+            <div></div>
+            <div></div>
+            <div></div>
+        </div>
+    </div>
+    <script>
+
+        // Глобальний прапорець для відстеження нещодавніх операцій перетягування
+        let isRecentlyDragged = false;
+
+        // Ініціалізація функціоналу пошуку та геокодування з використанням Nominatim API
+        function initGeocoding() {
+            // Створення елементів інтерфейсу для пошуку
+            const searchContainer = document.createElement('div');
+            searchContainer.className = 'search-container';
+            searchContainer.style.position = 'absolute';
+            searchContainer.style.top = '10px';
+            searchContainer.style.right = '10px';
+            searchContainer.style.zIndex = '1000';
+            searchContainer.style.width = '300px';
+
+            const searchInput = document.createElement('input');
+            searchInput.type = 'text';
+            searchInput.id = 'search-input';
+            searchInput.placeholder = 'Пошук адреси...';
+            searchInput.style.width = '100%';
+            searchInput.style.padding = '8px';
+            searchInput.style.borderRadius = '4px';
+            searchInput.style.border = '1px solid #ccc';
+            searchInput.style.boxShadow = '0 2px 5px rgba(0,0,0,0.1)';
+
+            const searchResults = document.createElement('div');
+            searchResults.id = 'search-results';
+            searchResults.style.backgroundColor = 'white';
+            searchResults.style.maxHeight = '300px';
+            searchResults.style.overflowY = 'auto';
+            searchResults.style.marginTop = '5px';
+            searchResults.style.borderRadius = '4px';
+            searchResults.style.boxShadow = '0 2px 5px rgba(0,0,0,0.1)';
+            searchResults.style.display = 'none';
+
+            searchContainer.appendChild(searchInput);
+            searchContainer.appendChild(searchResults);
+            document.body.appendChild(searchContainer);
+
+            // Обробник події для введення тексту в поле пошуку
+            let searchTimeout;
+            searchInput.addEventListener('input', function () {
+                clearTimeout(searchTimeout);
+                const query = this.value.trim();
+
+                if (query.length < 3) {
+                    searchResults.style.display = 'none';
+                    return;
+                }
+
+                // Затримка пошуку на 2 секунди після завершення введення
+                searchTimeout = setTimeout(() => {
+                    searchAddress(query);
+                }, 2000);
+            });
+
+            function parseCoordinateQuery(query) {
+                const normalizedQuery = query
+                    .trim()
+                    .replace(/[()]/g, ' ')
+                    .replace(/\s+/g, ' ');
+                const toNumber = (value) => parseFloat(value.replace(',', '.'));
+                const latMatch = normalizedQuery.match(/\b(?:lat|latitude|широта)\b\s*[:=]?\s*([-+]?\d{1,2}(?:[,.]\d+)?)/i);
+                const lonMatch = normalizedQuery.match(/\b(?:lon|lng|long|longitude|довгота)\b\s*[:=]?\s*([-+]?\d{1,3}(?:[,.]\d+)?)/i);
+
+                let lat;
+                let lng;
+                if (latMatch && lonMatch) {
+                    lat = toNumber(latMatch[1]);
+                    lng = toNumber(lonMatch[1]);
+                } else {
+                    const numbers = normalizedQuery.match(/[-+]?\d{1,3}(?:[,.]\d+)?/g) || [];
+                    const hasCoordinateShape = numbers.length >= 2 && numbers[0].match(/[,.]/) && numbers[1].match(/[,.]/);
+
+                    if (!hasCoordinateShape) {
+                        return null;
+                    }
+
+                    lat = toNumber(numbers[0]);
+                    lng = toNumber(numbers[1]);
+                }
+
+                if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+                    return null;
+                }
+
+                if (lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+                    return null;
+                }
+
+                return { lat, lng };
+            }
+
+            async function showCoordinateResult(lat, lng) {
+                searchResults.innerHTML = '';
+                const address = document.getElementById('default-geocode').checked
+                    ? await reverseGeocode(lat, lng)
+                    : '';
+                const resultItem = document.createElement('div');
+                resultItem.className = 'search-item';
+                resultItem.textContent = address || `Координати: ${lat.toFixed(8)}, ${lng.toFixed(8)}`;
+                resultItem.style.padding = '8px';
+                resultItem.style.borderBottom = '1px solid #eee';
+                resultItem.style.cursor = 'pointer';
+
+                resultItem.addEventListener('mouseover', function () {
+                    this.style.backgroundColor = '#f0f0f0';
+                });
+
+                resultItem.addEventListener('mouseout', function () {
+                    this.style.backgroundColor = 'white';
+                });
+
+                resultItem.addEventListener('click', function () {
+                    map.setView([lat, lng], 16);
+                    if (document.getElementById('default-geocode').checked) {
+                        addStation(lat, lng, 0, DEFAULT_CONFIG.RADIUS, DEFAULT_CONFIG.AZIMUTH_WIDTH, DEFAULT_CONFIG.COLOR, address);
+                    } else {
+                        addStation(lat, lng);
+                    }
+
+                    setTimeout(() => {
+                        searchInput.value = '';
+                        searchResults.style.display = 'none';
+                    }, 0);
+                });
+
+                searchResults.appendChild(resultItem);
+                searchResults.style.display = 'block';
+            }
+
+            // Функція для пошуку адреси через Nominatim API
+            function searchAddress(query) {
+                const coordinates = parseCoordinateQuery(query);
+                if (coordinates) {
+                    showCoordinateResult(coordinates.lat, coordinates.lng);
+                    return;
+                }
+
+                const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=5`;
+
+                fetch(url)
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error(`HTTP помилка! статус: ${response.status}`);
+                        }
+                        return response.json();
+                    })
+                    .then(data => {
+                        searchResults.innerHTML = '';
+
+                        if (data.length === 0) {
+                            searchResults.innerHTML = '<div class="search-item">Нічого не знайдено</div>';
+                            searchResults.style.display = 'block';
+                            return;
+                        }
+
+                        // Відображення результатів пошуку
+                        data.forEach(item => {
+                            const resultItem = document.createElement('div');
+                            resultItem.className = 'search-item';
+                            resultItem.textContent = item.display_name;
+                            resultItem.style.padding = '8px';
+                            resultItem.style.borderBottom = '1px solid #eee';
+                            resultItem.style.cursor = 'pointer';
+
+                            resultItem.addEventListener('mouseover', function () {
+                                this.style.backgroundColor = '#f0f0f0';
+                            });
+
+                            resultItem.addEventListener('mouseout', function () {
+                                this.style.backgroundColor = 'white';
+                            });
+
+                            // Додавання маркера базової станції при виборі результату
+                            resultItem.addEventListener('click', function () {
+                                const lat = parseFloat(item.lat);
+                                const lng = parseFloat(item.lon);
+
+                                // Переміщення карти до знайденої локації
+                                map.setView([lat, lng], 16);
+
+                                // Додавання маркера базової станції
+                                if (document.getElementById('default-geocode').checked) {
+                                    addStation(lat, lng, 0, DEFAULT_CONFIG.RADIUS, DEFAULT_CONFIG.AZIMUTH_WIDTH, DEFAULT_CONFIG.COLOR, item.display_name);
+                                } else {
+                                    addStation(lat, lng);
+                                }
+
+                                // Очищення пошуку після завершення
+                                setTimeout(() => {
+                                    searchInput.value = '';
+                                    searchResults.style.display = 'none';
+                                }, 0);
+                            });
+
+                            searchResults.appendChild(resultItem);
+                        });
+
+                        searchResults.style.display = 'block';
+                    })
+                    .catch(error => {
+                        console.error('Помилка пошуку:', error);
+                        searchResults.innerHTML = '<div class="search-item">Помилка пошуку</div>';
+                        searchResults.style.display = 'block';
+                    });
+            }
+
+            // Закриття результатів пошуку при кліку поза ними
+            document.addEventListener('click', function (e) {
+                if (!searchContainer.contains(e.target)) {
+                    searchResults.style.display = 'none';
+                }
+            });
+        }
+
+        // Функція для зворотного геокодування (отримання адреси за координатами)
+        const geocodeCache = new Map();
+
+        async function reverseGeocode(lat, lng) {
+            const key = `${lat.toFixed(6)},${lng.toFixed(6)}`; // Зменшення точності для уникнення дублювання
+            if (geocodeCache.has(key)) {
+                return geocodeCache.get(key);
+            }
+
+            const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`;
+            const indicator = document.getElementById('geocode-indicator');
+            try {
+                indicator.style.display = 'flex'; // Показуємо індикатор
+                const response = await fetch(url);
+                const data = await response.json();
+                const address = data?.address ? [
+                    data.address.state,
+                    data.address.county,
+                    data.address.city || data.address.town || data.address.village || '',
+                    data.address.road,
+                    data.address.house_number
+                ].filter(Boolean).join(', ') : '';
+                geocodeCache.set(key, address);
+                return address;
+            } catch (error) {
+                console.error('Помилка зворотного геокодування:', error);
+                return '';
+            } finally {
+                indicator.style.display = 'none'; // Ховаємо індикатор
+            }
+        }
+
+        // Модифікація обробника кліку на карті для автоматичного заповнення адреси
+        function enhanceMapClickHandler() {
+            map.off('click'); // Видалення всіх попередніх обробників
+            map.on('click', async function (e) {
+                const { lat, lng } = e.latlng;
+                const address = document.getElementById('default-geocode').checked
+                    ? await reverseGeocode(lat, lng) // Використання кешу для уникнення зайвих запитів
+                    : '';
+                addStation(lat, lng, 0, DEFAULT_CONFIG.RADIUS, DEFAULT_CONFIG.AZIMUTH_WIDTH, DEFAULT_CONFIG.COLOR, address);
+            });
+        }
+
+        // Ініціалізація функціоналу геокодування
+        document.addEventListener('DOMContentLoaded', function () {
+            initGeocoding();
+            enhanceMapClickHandler();
+        });
+
+        // Функція для серіалізації даних станцій
+        function serializeStations() {
+            return stations.map(station => ({
+                lat: station.lat,
+                lng: station.lng,
+                azimuth: station.azimuth,
+                radius: station.radius,
+                width: station.width,
+                color: station.color,
+                address: station.address,
+                metadata: station.metadata || {},
+                popupLat: station.popupLat,
+                popupLng: station.popupLng
+            }));
+        }
+
+        // Функція для збереження даних у файл
+        function saveStations(e) {
+            if (e) e.stopPropagation(); // Запобігання спливанню події
+            
+            const data = serializeStations();
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'base_stations.json';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        // Функція для завантаження даних із файлу
+        function loadStations(file) {
+            const reader = new FileReader();
+            reader.onload = function (e) {
+                e.stopPropagation(); // Запобігання спливанню події
+                
+                try {
+                    const data = JSON.parse(e.target.result);
+                    // Видалення існуючих станцій
+                    stations.forEach(station => {
+                        map.removeLayer(station.marker);
+                        map.removeLayer(station.polygon);
+                        map.removeLayer(station.popupMarker);
+                    });
+                    stations.length = 0;
+                    // Додавання завантажених станцій
+                    data.forEach(stationData => {
+                        addStation(
+                            stationData.lat,
+                            stationData.lng,
+                            stationData.azimuth,
+                            stationData.radius,
+                            stationData.width,
+                            stationData.color,
+                            stationData.address,
+                            'default',
+                            stationData.markerSize || DEFAULT_CONFIG.MARKER_SIZE,
+                            stationData.metadata || {}
+                        );
+                        // Встановлення позиції інфобокса, якщо вона була збережена
+                        if (stationData.popupLat && stationData.popupLng) {
+                            const lastIndex = stations.length - 1;
+                            stations[lastIndex].popupLat = stationData.popupLat;
+                            stations[lastIndex].popupLng = stationData.popupLng;
+                            stations[lastIndex].popupMarker.setLatLng([stationData.popupLat, stationData.popupLng]);
+                        }
+                    });
+                    updateStationList();
+                    alert('Дані успішно завантажено');
+                } catch (error) {
+                    alert('Помилка при завантаженні файлу: ' + error.message);
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        function parseImportedNumber(value) {
+            if (value === undefined || value === null) return NaN;
+            return parseFloat(String(value).trim().replace(',', '.'));
+        }
+
+        function isValidImportedStation(station) {
+            return Number.isFinite(station.lat)
+                && Number.isFinite(station.lng)
+                && station.lat >= -90
+                && station.lat <= 90
+                && station.lng >= -180
+                && station.lng <= 180;
+        }
+
+        function normalizeImportedAzimuth(value) {
+            const azimuth = parseImportedNumber(value);
+            if (!Number.isFinite(azimuth)) return 0;
+            return ((azimuth % 360) + 360) % 360;
+        }
+
+        function normalizeImportedText(value) {
+            return (value || '').toString().trim();
+        }
+
+        function getOperatorColor(operator) {
+            const colors = {
+                kyivstar: '#1565c0',
+                lifecell: '#f9c400',
+                vodafone: '#d32f2f'
+            };
+            return colors[normalizeImportedText(operator).toLowerCase()] || DEFAULT_CONFIG.COLOR;
+        }
+
+        function detectOperatorByMnc(mnc) {
+            const normalizedMnc = normalizeImportedText(mnc).replace(/^0+/, '');
+            const operators = {
+                '1': 'vodafone',
+                '3': 'kyivstar',
+                '6': 'lifecell'
+            };
+            return operators[normalizedMnc] || '';
+        }
+
+        function detectOperatorByPhone(phone) {
+            const digits = normalizeImportedText(phone).replace(/\D/g, '');
+            const localNumber = digits.startsWith('380') ? digits.slice(2) : digits;
+            const prefix = localNumber.slice(0, 3);
+            const kyivstarPrefixes = ['067', '068', '096', '097', '098'];
+            const lifecellPrefixes = ['063', '073', '093'];
+            const vodafonePrefixes = ['050', '066', '095', '099'];
+
+            if (kyivstarPrefixes.includes(prefix)) return 'kyivstar';
+            if (lifecellPrefixes.includes(prefix)) return 'lifecell';
+            if (vodafonePrefixes.includes(prefix)) return 'vodafone';
+            return '';
+        }
+
+        function detectImportedOperator(metadata = {}) {
+            return detectOperatorByPhone(metadata.phone) || detectOperatorByMnc(metadata.mnc);
+        }
+
+        function getStationDuplicate(stationData) {
+            const lac = normalizeImportedText(stationData.metadata?.lac);
+            const cid = normalizeImportedText(stationData.metadata?.cid);
+            if (lac && cid) {
+                const byCell = stations.find(station =>
+                    normalizeImportedText(station.metadata?.lac) === lac
+                    && normalizeImportedText(station.metadata?.cid) === cid
+                );
+                if (byCell) return byCell;
+            }
+
+            return stations.find(station => {
+                const distance = map.distance([station.lat, station.lng], [stationData.lat, stationData.lng]);
+                return distance < 25 && String(station.azimuth) === String(stationData.azimuth);
+            });
+        }
+
+        function makeImportedStation(data) {
+            const metadata = data.metadata || {};
+            metadata.operator = detectImportedOperator(metadata);
+            return {
+                lat: data.lat,
+                lng: data.lng,
+                azimuth: normalizeImportedAzimuth(data.azimuth),
+                address: data.address || '',
+                color: getOperatorColor(metadata.operator),
+                metadata
+            };
+        }
+
+        function parseSmsStations(text) {
+            const stationsFromSms = [];
+            const lines = text.replace(/\r/g, '').split('\n');
+            let current = {};
+
+            const pushCurrent = () => {
+                if (!isValidImportedStation(current)) return;
+                stationsFromSms.push(makeImportedStation({
+                    lat: current.lat,
+                    lng: current.lng,
+                    azimuth: normalizeImportedAzimuth(current.azimuth),
+                    address: current.address || '',
+                    metadata: current.metadata || {}
+                }));
+                current = {};
+            };
+
+            lines.forEach(rawLine => {
+                const line = rawLine.trim();
+                if (!line) return;
+                if (!current.metadata) current.metadata = {};
+
+                if (/^380\d{9}$/.test(line)) {
+                    if (isValidImportedStation(current)) pushCurrent();
+                    if (!current.metadata) current.metadata = {};
+                    current.metadata.phone = line;
+                    return;
+                }
+
+                const dateTimeMatch = line.match(/^(\d{2}\.\d{2}\.\d{4})\s+(\d{2}:\d{2}:\d{2})$/);
+                if (dateTimeMatch) {
+                    current.metadata.date = dateTimeMatch[1];
+                    current.metadata.time = dateTimeMatch[2];
+                    return;
+                }
+
+                const imsiMatch = line.match(/^IMSI\s+(.+)$/i);
+                if (imsiMatch) {
+                    current.metadata.imsi = imsiMatch[1].trim();
+                    return;
+                }
+
+                const lacCidMatch = line.match(/^LAC\s+(\S+)\s+CID\s+(\S+)/i);
+                if (lacCidMatch) {
+                    current.metadata.lac = lacCidMatch[1];
+                    current.metadata.cid = lacCidMatch[2];
+                    return;
+                }
+
+                const mccMncMatch = line.match(/^MCC\s+(\S+)\s+MNC\s+(\S+)/i);
+                if (mccMncMatch) {
+                    current.metadata.mcc = mccMncMatch[1];
+                    current.metadata.mnc = mccMncMatch[2];
+                    return;
+                }
+
+                const onlineMatch = line.match(/^В мережі:\s*(.+)$/i);
+                if (onlineMatch) {
+                    current.metadata.online = onlineMatch[1].trim();
+                    return;
+                }
+
+                const coordsMatch = line.match(/\bLat\b\s*[:=]?\s*([-+]?\d{1,2}(?:[,.]\d+)?)\s+\b(?:Lon|Lng)\b\s*[:=]?\s*([-+]?\d{1,3}(?:[,.]\d+)?)/i);
+                if (coordsMatch) {
+                    if (isValidImportedStation(current)) pushCurrent();
+                    if (!current.metadata) current.metadata = {};
+                    current.lat = parseImportedNumber(coordsMatch[1]);
+                    current.lng = parseImportedNumber(coordsMatch[2]);
+                    return;
+                }
+
+                const azimuthMatch = line.match(/^Аз\.?\s*[:=]?\s*([-+]?\d{1,3}(?:[,.]\d+)?)/i);
+                if (azimuthMatch) {
+                    current.azimuth = azimuthMatch[1];
+                    return;
+                }
+
+                const addressMatch = line.match(/^Адреса\s*БС\s*:\s*(.+)$/i);
+                if (addressMatch) {
+                    current.address = addressMatch[1].trim();
+                }
+            });
+
+            pushCurrent();
+            return stationsFromSms;
+        }
+
+        function parseTableStations(text) {
+            const cleanedText = text.replace(/^\uFEFF/, '').replace(/\r/g, '');
+            const lines = cleanedText.split('\n').filter(line => line.trim());
+            if (lines.length < 2) return [];
+
+            const separator = lines[0].includes('\t') ? '\t' : ';';
+            const headers = lines[0].split(separator).map(header => header.trim().replace(/^\uFEFF/, ''));
+            const getIndex = (names) => headers.findIndex(header => names.some(name => header.toLowerCase() === name.toLowerCase()));
+            const latIndex = getIndex(['Lat', 'Latitude', 'Широта']);
+            const lngIndex = getIndex(['Lon', 'Lng', 'Longitude', 'Довгота']);
+            const azimuthIndex = getIndex(['Аз.', 'Аз', 'Az', 'Azimuth']);
+            const addressIndex = getIndex(['Адреса', 'Адреса БС', 'Address']);
+            const phoneIndex = getIndex(['Номер', 'Phone']);
+            const imsiIndex = getIndex(['IMSI']);
+            const imeiIndex = getIndex(['IMEI']);
+            const lacIndex = getIndex(['LAC']);
+            const cidIndex = getIndex(['CID']);
+            const mccIndex = getIndex(['MCC']);
+            const mncIndex = getIndex(['MNC']);
+            const dateIndex = getIndex(['Дата', 'Date']);
+            const timeIndex = getIndex(['Час', 'Time']);
+            const ageIndex = getIndex(['Давність хв.', 'Давність', 'Age']);
+
+            if (latIndex === -1 || lngIndex === -1) return [];
+
+            return lines.slice(1).map(line => {
+                const cells = line.split(separator);
+                const metadata = {
+                    phone: phoneIndex === -1 ? '' : normalizeImportedText(cells[phoneIndex]),
+                    imsi: imsiIndex === -1 ? '' : normalizeImportedText(cells[imsiIndex]),
+                    imei: imeiIndex === -1 ? '' : normalizeImportedText(cells[imeiIndex]),
+                    lac: lacIndex === -1 ? '' : normalizeImportedText(cells[lacIndex]),
+                    cid: cidIndex === -1 ? '' : normalizeImportedText(cells[cidIndex]),
+                    mcc: mccIndex === -1 ? '' : normalizeImportedText(cells[mccIndex]),
+                    mnc: mncIndex === -1 ? '' : normalizeImportedText(cells[mncIndex]),
+                    date: dateIndex === -1 ? '' : normalizeImportedText(cells[dateIndex]),
+                    time: timeIndex === -1 ? '' : normalizeImportedText(cells[timeIndex]),
+                    ageMinutes: ageIndex === -1 ? '' : normalizeImportedText(cells[ageIndex])
+                };
+                const station = makeImportedStation({
+                    lat: parseImportedNumber(cells[latIndex]),
+                    lng: parseImportedNumber(cells[lngIndex]),
+                    azimuth: normalizeImportedAzimuth(azimuthIndex === -1 ? 0 : cells[azimuthIndex]),
+                    address: addressIndex === -1 ? '' : (cells[addressIndex] || '').trim(),
+                    metadata
+                });
+                return station;
+            }).filter(isValidImportedStation);
+        }
+
+        function parseImportedStations(text) {
+            const tableStations = parseTableStations(text);
+            if (tableStations.length > 0) return tableStations;
+            return parseSmsStations(text);
+        }
+
+        function importStationsFromText(text, append = true) {
+            const importedStations = parseImportedStations(text);
+            if (importedStations.length === 0) {
+                alert('Не знайдено координати для імпорту');
+                return 0;
+            }
+
+            if (!append) {
+                stations.forEach(station => {
+                    map.removeLayer(station.marker);
+                    map.removeLayer(station.polygon);
+                    map.removeLayer(station.popupMarker);
+                });
+                stations.length = 0;
+            }
+
+            let skippedDuplicates = 0;
+            importedStations.forEach(stationData => {
+                if (append && getStationDuplicate(stationData)) {
+                    skippedDuplicates += 1;
+                    return;
+                }
+
+                addStation(
+                    stationData.lat,
+                    stationData.lng,
+                    stationData.azimuth,
+                    DEFAULT_CONFIG.RADIUS,
+                    DEFAULT_CONFIG.AZIMUTH_WIDTH,
+                    stationData.color || DEFAULT_CONFIG.COLOR,
+                    stationData.address,
+                    'default',
+                    DEFAULT_CONFIG.MARKER_SIZE,
+                    stationData.metadata || {}
+                );
+            });
+
+            const lastStation = importedStations[importedStations.length - 1];
+            map.setView([lastStation.lat, lastStation.lng], importedStations.length === 1 ? 16 : 11);
+            updateStationList();
+            const importedCount = importedStations.length - skippedDuplicates;
+            alert(`Імпортовано станцій: ${importedCount}${skippedDuplicates ? `. Дублікатів пропущено: ${skippedDuplicates}` : ''}`);
+            return importedCount;
+        }
+
+        function importStationsFile(file) {
+            const reader = new FileReader();
+            reader.onload = function (e) {
+                importStationsFromText(e.target.result, true);
+            };
+            reader.readAsText(file, 'UTF-8');
+        }
+
+        function openSmsImportDialog() {
+            const existingDialog = document.getElementById('sms-import-dialog');
+            if (existingDialog) existingDialog.remove();
+
+            const overlay = document.createElement('div');
+            overlay.id = 'sms-import-dialog';
+            overlay.style.position = 'fixed';
+            overlay.style.inset = '0';
+            overlay.style.background = 'rgba(0, 0, 0, 0.35)';
+            overlay.style.zIndex = '2000';
+            overlay.style.display = 'flex';
+            overlay.style.alignItems = 'center';
+            overlay.style.justifyContent = 'center';
+            overlay.style.padding = '12px';
+
+            const dialog = document.createElement('div');
+            dialog.style.width = 'min(560px, 100%)';
+            dialog.style.background = '#fff';
+            dialog.style.borderRadius = '6px';
+            dialog.style.boxShadow = '0 8px 24px rgba(0,0,0,0.25)';
+            dialog.style.padding = '14px';
+            dialog.style.fontFamily = 'Tahoma, sans-serif';
+            dialog.style.fontSize = '12px';
+
+            const title = document.createElement('h4');
+            title.textContent = 'Імпорт SMS/TXT';
+            title.style.margin = '0 0 10px 0';
+            title.style.fontSize = '14px';
+
+            const textarea = document.createElement('textarea');
+            textarea.placeholder = 'Встав SMS або текст з координатами, адресою та азимутом...';
+            textarea.style.width = '100%';
+            textarea.style.height = '220px';
+            textarea.style.boxSizing = 'border-box';
+            textarea.style.resize = 'vertical';
+            textarea.style.padding = '8px';
+            textarea.style.border = '1px solid #ccc';
+            textarea.style.borderRadius = '4px';
+            textarea.style.fontFamily = 'Tahoma, sans-serif';
+            textarea.style.fontSize = '12px';
+
+            const fileInput = document.createElement('input');
+            fileInput.type = 'file';
+            fileInput.accept = '.txt,.csv,.tsv';
+            fileInput.style.display = 'none';
+            fileInput.addEventListener('change', (e) => {
+                if (e.target.files.length > 0) {
+                    importStationsFile(e.target.files[0]);
+                    overlay.remove();
+                }
+            });
+
+            const actions = document.createElement('div');
+            actions.style.display = 'flex';
+            actions.style.gap = '8px';
+            actions.style.justifyContent = 'flex-end';
+            actions.style.flexWrap = 'wrap';
+            actions.style.marginTop = '10px';
+
+            const importTextButton = document.createElement('button');
+            importTextButton.textContent = 'Додати з тексту';
+            importTextButton.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const importedCount = importStationsFromText(textarea.value, true);
+                if (importedCount > 0) overlay.remove();
+            });
+
+            const importFileButton = document.createElement('button');
+            importFileButton.textContent = 'Вибрати TXT';
+            importFileButton.style.backgroundColor = '#2196F3';
+            importFileButton.addEventListener('click', (e) => {
+                e.stopPropagation();
+                fileInput.click();
+            });
+
+            const cancelButton = document.createElement('button');
+            cancelButton.textContent = 'Закрити';
+            cancelButton.style.backgroundColor = '#777';
+            cancelButton.addEventListener('click', (e) => {
+                e.stopPropagation();
+                overlay.remove();
+            });
+
+            actions.appendChild(importTextButton);
+            actions.appendChild(importFileButton);
+            actions.appendChild(cancelButton);
+            dialog.appendChild(title);
+            dialog.appendChild(textarea);
+            dialog.appendChild(fileInput);
+            dialog.appendChild(actions);
+            overlay.appendChild(dialog);
+            overlay.addEventListener('click', (e) => {
+                if (e.target === overlay) overlay.remove();
+            });
+            document.body.appendChild(overlay);
+            textarea.focus();
+        }
+
+        // Додавання кнопок збереження та завантаження
+        function addSaveLoadButtons() {
+            const sidebar = document.getElementById('sidebar');
+            const buttonContainer = document.createElement('div');
+            buttonContainer.className = 'save-load-buttons';
+            buttonContainer.style.marginBottom = '15px';
+            buttonContainer.style.flexWrap = 'wrap';
+            // Кнопка збереження
+            const saveButton = document.createElement('button');
+            saveButton.textContent = 'Зберегти дані';
+            saveButton.style.marginRight = '10px';
+            saveButton.style.padding = '5px 10px';
+            saveButton.addEventListener('click', saveStations);
+            // Кнопка завантаження
+            const loadButton = document.createElement('button');
+            loadButton.textContent = 'Завантажити дані';
+            loadButton.style.padding = '5px 10px';
+            // Прихований input для вибору файлу
+            const fileInput = document.createElement('input');
+            fileInput.type = 'file';
+            fileInput.accept = '.json';
+            fileInput.style.display = 'none';
+            fileInput.addEventListener('change', (e) => {
+                e.stopPropagation(); // Запобігання спливанню події
+                if (e.target.files.length > 0) {
+                    loadStations(e.target.files[0]);
+                }
+            });
+            loadButton.addEventListener('click', (e) => {
+                e.stopPropagation(); // Запобігання спливанню події
+                fileInput.click();
+            });
+
+            const importSmsButton = document.createElement('button');
+            importSmsButton.textContent = 'Імпорт SMS/TXT';
+            importSmsButton.style.backgroundColor = '#673ab7';
+            importSmsButton.style.padding = '5px 10px';
+            importSmsButton.addEventListener('click', (e) => {
+                e.stopPropagation();
+                openSmsImportDialog();
+            });
+
+            buttonContainer.appendChild(saveButton);
+            buttonContainer.appendChild(loadButton);
+            buttonContainer.appendChild(importSmsButton);
+            buttonContainer.appendChild(fileInput);
+            // Вставлення кнопок після заголовка
+            const title = sidebar.querySelector('h3');
+            title.parentNode.insertBefore(buttonContainer, title.nextSibling);
+        }
+
+        // Ініціалізація функціоналу збереження/завантаження
+        document.addEventListener('DOMContentLoaded', addSaveLoadButtons);
+        const map = L.map('map').setView([50.4501, 30.5234], 14); // Центр Києва
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+        }).addTo(map);
+
+        // Константи
+        const DEFAULT_CONFIG = {
+            AZIMUTH_WIDTH: 120,
+            RADIUS: 700,
+            COLOR: '#000000',
+            POPUP_DISTANCE: 250, // Відступ інфобокса по замовчуванню
+            FONT_SIZE: 12,
+            FONT_WEIGHT: 'normal',
+            FONT_STYLE: 'normal',
+            MARKER_SIZE: 17 // px
+        };
+
+        // Кешуємо DOM елементи
+        const DOM = {
+            stationList: document.getElementById('station-list'),
+            toggleSidebar: document.getElementById('toggle-sidebar'),
+            deleteAll: document.getElementById('delete-all'),
+            sidebar: document.getElementById('sidebar'),
+            defaultFontSize: document.getElementById('default-font-size'),
+            defaultColor: document.getElementById('default-color'),
+            defaultBold: document.getElementById('default-bold'),
+            defaultItalic: document.getElementById('default-italic'),
+            defaultRadius: document.getElementById('default-radius'),
+            defaultWidth: document.getElementById('default-width'),
+            defaultPopupDistance: document.getElementById('default-popup-distance'),
+            defaultGeocode: document.getElementById('default-geocode'),
+            defaultMarkerSize: document.getElementById('default-marker-size'),
+            defaultMarkerSizeValue: document.getElementById('default-marker-size-value')
+        };
+
+        const stations = [];
+
+        // Допоміжні функції
+        const calculatePopupPosition = (lat, lng, azimuth) => {
+            const oppositeAzimuth = (azimuth + 180) % 360;
+            const latOffset = (DEFAULT_CONFIG.POPUP_DISTANCE / 111320) * Math.cos(oppositeAzimuth * (Math.PI / 180));
+            const lngOffset = (DEFAULT_CONFIG.POPUP_DISTANCE / (111320 * Math.cos(lat * (Math.PI / 180)))) * Math.sin(oppositeAzimuth * (Math.PI / 180));
+            return {
+                lat: lat + latOffset,
+                lng: lng + lngOffset
+            };
+        };
+
+        function createAzimuthPolygon(lat, lng, azimuth, radius, width, color) {
+            if (width === 360) {
+                // If width is 360, create a circle
+                return L.circle([lat, lng], {
+                    radius: radius,
+                    color: color,
+                    fillColor: color,
+                    fillOpacity: 0.3, // Set opacity to 30%
+                    weight: 1
+                });
+            }
+            const startAngle = (azimuth - width / 2) * (Math.PI / 180);
+            const endAngle = (azimuth + width / 2) * (Math.PI / 180);
+            const points = [[lat, lng]];
+            const step = Math.PI / 180;
+            for (let angle = startAngle; angle <= endAngle; angle += step) {
+                const pointLat = lat + (radius / 111320) * Math.cos(angle);
+                const pointLng = lng + (radius / (111320 * Math.cos(lat * (Math.PI / 180)))) * Math.sin(angle);
+                points.push([pointLat, pointLng]);
+            }
+            points.push([lat, lng]); // Замикаємо полігон
+            return L.polygon(points, { color, fillColor: color, fillOpacity: 0.2, weight: 1 }); // Set opacity to 30%
+        }
+
+        function escapeHtml(value) {
+            return (value || '').toString()
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+
+        function getMetadataLines(metadata = {}) {
+            return [
+                metadata.phone ? `Номер: ${metadata.phone}` : '',
+                metadata.operator ? `Оператор: ${metadata.operator}` : '',
+                metadata.imsi ? `IMSI: ${metadata.imsi}` : '',
+                metadata.lac || metadata.cid ? `LAC/CID: ${metadata.lac || '-'} / ${metadata.cid || '-'}` : '',
+                metadata.mcc || metadata.mnc ? `MCC/MNC: ${metadata.mcc || '-'} / ${metadata.mnc || '-'}` : '',
+                metadata.date || metadata.time ? `Час: ${[metadata.date, metadata.time].filter(Boolean).join(' ')}` : '',
+                metadata.online ? `В мережі: ${metadata.online}` : '',
+                metadata.ageMinutes ? `Давність: ${metadata.ageMinutes} хв.` : ''
+            ].filter(Boolean);
+        }
+
+        function createPopup(address, azimuth, color, metadata = {}) {
+            const div = document.createElement('div');
+            div.className = 'info-box';
+            div.style.fontSize = `${DEFAULT_CONFIG.FONT_SIZE}px`;
+            div.style.fontWeight = `${DEFAULT_CONFIG.FONT_WEIGHT}`;
+            div.style.fontStyle = `${DEFAULT_CONFIG.FONT_STYLE}`;
+            div.style.borderColor = color;
+            div.style.opacity = '1';
+            div.style.lineHeight = 'normal';
+            div.style.minWidth = '100px'; // Встановлюємо мінімальну ширину
+            div.style.maxWidth = '250px'; // Встановлюємо максимальну ширину
+            div.style.textAlign = 'left'; // Вирівнюємо текст по лівому краю
+
+            const addressHtml = escapeHtml(address || '').replace(/\r?\n/g, '<br>');
+            const metadataHtml = getMetadataLines(metadata)
+                .map(line => `<div style="border-color: ${color};">${escapeHtml(line)}</div>`)
+                .join('');
+            let azimuthHtml = '';
+            if (azimuth !== '' && azimuth !== undefined && azimuth !== null) {
+                azimuthHtml = `<div style="border-color: ${color};">Азимут: ${azimuth}</div>`;
+            }
+            div.innerHTML = `
+                <div style="border-color: ${color};">${addressHtml}</div>
+                ${metadataHtml}
+                ${azimuthHtml}
+            `;
+
+            // Динамічно регулюємо ширину залежно від вмісту
+            const tempDiv = document.createElement('div');
+            tempDiv.style.position = 'absolute';
+            tempDiv.style.visibility = 'hidden';
+            tempDiv.style.whiteSpace = 'nowrap';
+            tempDiv.style.fontSize = `${DEFAULT_CONFIG.FONT_SIZE}px`;
+            tempDiv.style.fontWeight = `${DEFAULT_CONFIG.FONT_WEIGHT}`;
+            tempDiv.style.fontStyle = `${DEFAULT_CONFIG.FONT_STYLE}`;
+            tempDiv.innerHTML = addressHtml;
+            document.body.appendChild(tempDiv);
+            const calculatedWidth = Math.min(Math.max(tempDiv.offsetWidth + 20, 150), 500); // Додаємо відступи та обмежуємо
+            div.style.width = `${calculatedWidth}px`;
+            document.body.removeChild(tempDiv);
+
+            return L.divIcon({
+                html: div,
+                className: 'info-box-container',
+                iconSize: null, // Дозволяємо динамічний розмір
+                iconAnchor: [calculatedWidth / 2, 0] // Вирівнюємо по центру базової станції
+            });
+        }
+
+        function setupPopupDragging(popup, station) {
+            const marker = L.marker([station.popupLat, station.popupLng], {
+                icon: popup,
+                draggable: true,
+                zIndexOffset: 1000
+            }).addTo(map);
+            marker.on('drag', (e) => {
+                const { lat, lng } = e.target.getLatLng();
+                station.popupLat = lat;
+                station.popupLng = lng;
+            });
+            marker.on('dragend', () => {
+                isRecentlyDragged = true; // Set flag for popup dragging too
+                setTimeout(() => {
+                    isRecentlyDragged = false;
+                }, 300); // Reset flag after short period to prevent accidental station creation
+            });
+            return marker;
+        }
+
+        function createCustomIcon(color, size = DEFAULT_CONFIG.MARKER_SIZE) {
+            return L.divIcon({
+                className: 'custom-marker',
+                html: `
+                    <div style="
+                        width: ${size}px;
+                        height: ${size}px;
+                        background: ${color};
+                        border-radius: 50%;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        border: 2px solid white;">
+                        <div style="
+                            width: ${Math.round(size/2)}px;
+                            height: ${Math.round(size/2)}px;
+                            background: white;
+                            border-radius: 50%;"></div>
+                    </div>
+                `,
+                iconSize: [size, size],
+                iconAnchor: [Math.round(size/2), Math.round(size/2)]
+            });
+        }
+
+        function addStation(lat, lng, azimuth = 0, radius = DEFAULT_CONFIG.RADIUS,
+            width = DEFAULT_CONFIG.AZIMUTH_WIDTH, color = DEFAULT_CONFIG.COLOR,
+            address = '', icon = 'default', markerSize = DEFAULT_CONFIG.MARKER_SIZE,
+            metadata = {}) {
+            const station = {
+                lat,
+                lng,
+                azimuth,
+                radius,
+                width,
+                color: color || DEFAULT_CONFIG.COLOR,
+                address: address,
+                metadata: metadata || {},
+                icon,
+                marker: null,
+                polygon: null,
+                popup: null,
+                popupMarker: null,
+                popupLat: null,
+                popupLng: null,
+                markerSize: markerSize || DEFAULT_CONFIG.MARKER_SIZE
+            };
+
+            // Додаємо маркер
+            station.marker = L.marker([lat, lng], { draggable: true, icon: createCustomIcon(color, station.markerSize) }).addTo(map);
+            setupStationDragging(station);
+
+            // Додаємо полігон
+            station.polygon = createAzimuthPolygon(lat, lng, azimuth, radius, width, color);
+            station.polygon.addTo(map);
+
+            // Налаштовуємо popup
+            const popupPos = calculatePopupPosition(lat, lng, azimuth);
+            station.popupLat = popupPos.lat;
+            station.popupLng = popupPos.lng;
+            station.popup = createPopup(address, azimuth, color, station.metadata);
+            station.popupMarker = setupPopupDragging(station.popup, station);
+
+            stations.push(station);
+            updateStationList();
+
+            // Update the textarea in the settings with the address
+            const textarea = DOM.stationList.querySelector(`.address-input[data-index="${stations.length - 1}"]`);
+            if (textarea) {
+                textarea.value = station.address;
+            }
+        }
+
+        // Function to set up dragging for the station marker and polygon without triggering geocoding
+        function setupStationDragging(station) {
+            // Make the station marker draggable
+            station.marker.on('drag', (e) => {
+                const { lat, lng } = e.target.getLatLng();
+                station.lat = lat;
+                station.lng = lng;
+
+                // Update popup position relative to the new station position
+                const latOffset = station.popupLat - station.lat;
+                const lngOffset = station.popupLng - station.lng;
+                station.popupLat = lat + latOffset;
+                station.popupLng = lng + lngOffset;
+
+                station.popupMarker.setLatLng([station.popupLat, station.popupLng]);
+                updateStationPolygon(station); // Update azimuth polygon position
+            });
+
+            // When drag ends, update the station list to reflect new position
+            station.marker.on('dragend', () => {
+                isRecentlyDragged = true; // Set flag indicating recent drag activity
+                setTimeout(() => {
+                    isRecentlyDragged = false;
+                }, 300); // Reset flag after short period to prevent accidental station creation
+                updateStationList();
+            });
+        }
+
+        function updateStationPolygon(station) {
+            // Remove the old polygon
+            map.removeLayer(station.polygon);
+
+            // Create and add the updated polygon
+            station.polygon = createAzimuthPolygon(
+                station.lat,
+                station.lng,
+                station.azimuth,
+                station.radius,
+                station.width,
+                station.color
+            );
+            station.polygon.addTo(map);
+        }
+
+        function updatePopupPosition(station) {
+            // Calculate the new popup position
+            const popupPos = calculatePopupPosition(station.lat, station.lng, station.azimuth);
+            station.popupLat = popupPos.lat;
+            station.popupLng = popupPos.lng;
+
+            // Update the popup marker's position
+            station.popupMarker.setLatLng([station.popupLat, station.popupLng]);
+        }
+
+        function updatePopupStyle(station) {
+            const popupElement = station.popupMarker.getElement();
+            if (popupElement) {
+                const infoBox = popupElement.querySelector('.info-box');
+                if (infoBox) {
+                    infoBox.style.padding = '5px';
+                    infoBox.style.borderColor = station.color;
+                    infoBox.style.opacity = '1'; // Ensure full opacity
+                }
+            }
+        }
+
+        function createStationListItem(station, index) {
+            const item = document.createElement('div');
+            item.className = 'station-item';
+            const metadataLines = getMetadataLines(station.metadata || {});
+            const metadataHtml = metadataLines.length
+                ? `<div class="station-metadata" style="font-size:11px;color:#444;background:#f4f6f8;border:1px solid #e1e5ea;border-radius:4px;padding:6px;margin:6px 0;">${metadataLines.map(line => `<div>${escapeHtml(line)}</div>`).join('')}</div>`
+                : '';
+            item.innerHTML = `
+                ${metadataHtml}
+                <textarea data-index="${index}" class="address-input" style="width:100%;min-height:36px;resize:vertical;">${escapeHtml(station.address || '')}</textarea>
+                <label>Радіус (м):</label>
+                <input type="number" value="${station.radius}" data-index="${index}" class="radius-input" />
+                <label>Азимут (0-360):</label>
+                <input type="number" min="0" max="360" value="${station.azimuth}" data-index="${index}" class="azimuth-input" />
+                <label>Ширина (0-360):</label>
+                <input type="number" value="${station.width}" data-index="${index}" class="width-input" />
+                <label>Колір:</label>
+                <input type="color" value="${station.color}" data-index="${index}" class="color-input" />
+                <label>Розмір маркера: <span class="marker-size-value">${station.markerSize || DEFAULT_CONFIG.MARKER_SIZE}</span> px</label>
+                <input type="range" min="0" max="8" step="1" value="${getMarkerSizeIndex(station.markerSize || DEFAULT_CONFIG.MARKER_SIZE)}" data-index="${index}" class="marker-size-input" style="width:100%;">
+                <button data-index="${index}" class="delete-button">Видалити</button>
+            `;
+            return item;
+        }
+
+        function updateStationList() {
+            const fragment = document.createDocumentFragment();
+            stations.forEach((station, index) => {
+                fragment.appendChild(createStationListItem(station, index));
+            });
+            DOM.stationList.innerHTML = ''; // Clear existing list
+            DOM.stationList.appendChild(fragment); // Append all at once
+        }
+
+        // Обробники подій
+        document.getElementById('station-list').addEventListener('input', (e) => {
+            e.stopPropagation(); // Запобігання спливанню події
+            
+            const index = e.target.dataset.index;
+            const station = stations[index];
+            switch (e.target.className) {
+                case 'address-input':
+                    const addressValue = e.target.value;
+                    station.address = addressValue;
+                    // Оновлюємо інфобокс з оновленим текстом
+                    station.popup = createPopup(addressValue, station.azimuth, station.color, station.metadata);
+                    station.popupMarker.setIcon(station.popup);
+
+                    // Динамічно вирівнюємо інфобокс по центру
+                    const popupEl = station.popupMarker.getElement();
+                    if (popupEl) {
+                        const infoBox = popupEl.querySelector('.info-box');
+                        if (infoBox) {
+                            const tempDiv = document.createElement('div');
+                            tempDiv.style.position = 'absolute';
+                            tempDiv.style.visibility = 'hidden';
+                            tempDiv.style.whiteSpace = 'nowrap';
+                            tempDiv.style.fontSize = `${DEFAULT_CONFIG.FONT_SIZE}px`;
+                            tempDiv.style.fontWeight = `${DEFAULT_CONFIG.FONT_WEIGHT}`;
+                            tempDiv.style.fontStyle = `${DEFAULT_CONFIG.FONT_STYLE}`;
+                            tempDiv.innerHTML = addressValue.replace(/\r?\n/g, '<br>');
+                            document.body.appendChild(tempDiv);
+                            const calculatedWidth = Math.min(Math.max(tempDiv.offsetWidth + 20, 150), 500);
+                            infoBox.style.width = `${calculatedWidth}px`;
+                            station.popupMarker.options.icon.options.iconAnchor = [calculatedWidth / 2, 0];
+                            station.popupMarker.setIcon(station.popup); // Оновлюємо позицію
+                            document.body.removeChild(tempDiv);
+                        }
+                    }
+                    break;
+                case 'azimuth-input':
+                    if (e.target.value === '') {
+                        // Дозволяємо порожнє значення без попередження
+                        station.azimuth = '';
+                        station.popup = createPopup(station.address, '', station.color, station.metadata);
+                        station.popupMarker.setIcon(station.popup);
+                        break;
+                    }
+                    const azimuthValue = parseFloat(e.target.value);
+                    if (isNaN(azimuthValue) || azimuthValue < 0 || azimuthValue > 360) {
+                        // Reset to previous valid value
+                        e.target.value = station.azimuth;
+                        alert('Азимут має бути в діапазоні від 0 до 360 градусів.');
+                    } else {
+                        station.azimuth = azimuthValue;
+                        updateStationPolygon(station);
+                        station.popup = createPopup(station.address, station.azimuth, station.color, station.metadata);
+                        station.popupMarker.setIcon(station.popup);
+                    }
+                    break;
+                case 'radius-input':
+                    station.radius = parseFloat(e.target.value);
+                    updateStationPolygon(station);
+                    break;
+                case 'width-input':
+                    if (e.target.value === '') {
+                        // Дозволяємо порожнє значення без попередження і ховаємо полігон
+                        station.width = '';
+                        if (station.polygon) {
+                            map.removeLayer(station.polygon);
+                            station.polygon = null;
+                        }
+                        // Додаємо: оновлення кольору маркера навіть якщо полігон прихований
+                        const newIcon = L.divIcon({
+                            className: 'custom-marker',
+                            html: `
+                                <div style="
+                                    width: 14px;
+                                    height: 14px;
+                                    background: ${station.color};
+                                    border-radius: 50%;
+                                    display: flex;
+                                    align-items: center;
+                                    justify-content: center;
+                                    border: 2px solid white;">
+                                    <div style="
+                                        width: 6px;
+                                        height: 6px;
+                                        background: white;
+                                        border-radius: 50%;"></div>
+                                </div>
+                            `,
+                            iconSize: [14, 14],
+                            iconAnchor: [7, 7]
+                        });
+                        station.marker.setIcon(newIcon);
+                        break;
+                    }
+                    const widthValue = parseFloat(e.target.value);
+                    if (isNaN(widthValue) || widthValue < 0 || widthValue > 360) {
+                        // Reset to previous valid value
+                        e.target.value = station.width;
+                        alert('Ширина азимуту має бути в діапазоні від 0 до 360 градусів.');
+                    } else {
+                        station.width = widthValue;
+                        // Якщо полігон був прихований, створити його знову
+                        if (!station.polygon) {
+                            station.polygon = createAzimuthPolygon(
+                                station.lat,
+                                station.lng,
+                                station.azimuth === '' ? 0 : station.azimuth,
+                                station.radius,
+                                station.width,
+                                station.color
+                            );
+                            station.polygon.addTo(map);
+                        } else {
+                            updateStationPolygon(station);
+                        }
+                    }
+                    break;
+                case 'color-input':
+                    station.color = e.target.value;
+                    // Оновлюємо полігон, якщо він є
+                    if (station.polygon) {
+                        updateStationPolygon(station);
+                    }
+                    // Оновлюємо маркер завжди
+                    station.marker.setIcon(createCustomIcon(station.color, station.markerSize || DEFAULT_CONFIG.MARKER_SIZE));
+
+                    // Update popup border color
+                    const popupElement = station.popupMarker.getElement();
+                    if (popupElement) {
+                        const infoBox = popupElement.querySelector('.info-box');
+                        if (infoBox) {
+                            infoBox.style.borderColor = station.color;
+                        }
+                    }
+                    break;
+                case 'marker-size-input':
+                    let idx = parseInt(e.target.value);
+                    let val = getMarkerSizeByIndex(idx);
+                    station.markerSize = val;
+                    station.marker.setIcon(createCustomIcon(station.color, station.markerSize));
+                    e.target.parentElement.querySelector('.marker-size-value').textContent = station.markerSize;
+                    break;
+            }
+        });
+
+        document.getElementById('station-list').addEventListener('click', (e) => {
+            e.stopPropagation(); // Prevent event bubbling to map
+            
+            if (e.target.classList.contains('delete-button')) {
+                const index = e.target.dataset.index;
+                map.removeLayer(stations[index].marker);
+                map.removeLayer(stations[index].polygon);
+                map.removeLayer(stations[index].popupMarker);
+                stations.splice(index, 1);
+                updateStationList();
+            }
+        });
+
+        map.on('click', async function (e) {
+            // Check if the click originated from a UI element or after a recent drag
+            if (e.originalEvent.target.closest('#sidebar') || 
+                e.originalEvent.target.closest('#button-container') ||
+                e.originalEvent.target.closest('.leaflet-control') ||
+                e.originalEvent.target.closest('.info-box') ||
+                e.originalEvent.target.closest('.search-container') ||
+                isRecentlyDragged) {
+                return; // Don't add station if clicking on UI elements or after dragging
+            }
+
+            // Prevent adding a new station if the click is near an existing station
+            const { lat, lng } = e.latlng;
+            const isNearExistingStation = stations.some(station => {
+                const distance = map.distance([station.lat, station.lng], [lat, lng]);
+                return distance < 50; // Adjusted threshold in meters to avoid duplicate stations
+            });
+
+            if (isNearExistingStation) {
+                return; // Do not create a new station
+            }
+
+            // Show geocoding indicator if geocoding is enabled
+            const geocodeEnabled = document.getElementById('default-geocode').checked;
+            const indicator = document.getElementById('geocode-indicator');
+            
+            if (geocodeEnabled) {
+                indicator.style.display = 'block';
+            }
+            
+            // Get address only if geocoding is enabled
+            const address = geocodeEnabled ? await reverseGeocode(lat, lng) : '';
+            
+            // Hide indicator after geocoding
+            indicator.style.display = 'none';
+
+            // Add station with obtained address
+            const defaultAzimuth = 0; // Valid default value in range 0-360
+            const stationIndex = stations.length; // Index for the new station
+            addStation(lat, lng, defaultAzimuth, DEFAULT_CONFIG.RADIUS, DEFAULT_CONFIG.AZIMUTH_WIDTH, DEFAULT_CONFIG.COLOR, address);
+
+            // Update the textarea in the settings with the geocoded address
+            const textarea = DOM.stationList.querySelector(`.address-input[data-index="${stationIndex}"]`);
+            if (textarea) {
+                textarea.value = address;
+                // Update the popup on the map with the same address
+                const station = stations[stationIndex];
+                station.address = address;
+                station.popup = createPopup(station.address, station.azimuth, station.color, station.metadata);
+                station.popupMarker.setIcon(station.popup);
+            }
+        });
+
+        map.on('zoomend', () => {
+            stations.forEach(updatePopupStyle);
+        });
+
+        function handleToggleSidebar(e) {
+            if (e) e.stopPropagation(); // Prevent event bubbling
+            DOM.sidebar.classList.toggle('collapsed');
+            DOM.toggleSidebar.textContent = DOM.sidebar.classList.contains('collapsed')
+                ? 'Розгорнути панель'
+                : 'Згорнути панель';
+
+            // Adjust geocode-indicator position
+            const indicator = document.getElementById('geocode-indicator');
+            if (DOM.sidebar.classList.contains('collapsed')) {
+                indicator.style.left = '50%'; // Center without sidebar
+            } else {
+                indicator.style.left = 'calc(50% + 150px)'; // Center with sidebar
+            }
+
+            setTimeout(() => map.invalidateSize(), 300); // Ensure correct map size
+        }
+
+        function handleDeleteAll(e) {
+            if (e) e.stopPropagation(); // Prevent event bubbling
+            stations.forEach(station => {
+                map.removeLayer(station.marker);
+                map.removeLayer(station.polygon);
+                map.removeLayer(station.popupMarker);
+            });
+            stations.length = 0;
+            updateStationList();
+        }
+
+        DOM.toggleSidebar.addEventListener('click', handleToggleSidebar);
+        DOM.deleteAll.addEventListener('click', handleDeleteAll);
+
+        // Оновлюємо налаштування за замовчуванням
+        DOM.defaultFontSize.addEventListener('change', (e) => {
+            e.stopPropagation(); // Prevent event bubbling to map
+            
+            DEFAULT_CONFIG.FONT_SIZE = parseInt(e.target.value);
+            stations.forEach(station => {
+                const popupElement = station.popupMarker.getElement();
+                if (popupElement) {
+                    const infoBox = popupElement.querySelector('.info-box');
+                    if (infoBox) {
+                        infoBox.style.fontSize = `${DEFAULT_CONFIG.FONT_SIZE}px`;
+                    }
+                }
+            });
+        });
+
+        DOM.defaultColor.addEventListener('input', (e) => {
+            e.stopPropagation(); // Prevent event bubbling to map
+            
+            DEFAULT_CONFIG.COLOR = e.target.value;
+            stations.forEach(station => {
+                station.color = DEFAULT_CONFIG.COLOR;
+                updateStationPolygon(station);
+                // Update marker color without changing its size
+                station.marker.setIcon(createCustomIcon(station.color, station.markerSize));
+                // Update popup border color
+                const popupElement = station.popupMarker.getElement();
+                if (popupElement) {
+                    const infoBox = popupElement.querySelector('.info-box');
+                    if (infoBox) {
+                        infoBox.style.borderColor = DEFAULT_CONFIG.COLOR;
+                    }
+                }
+            });
+
+            // Update color input in station settings
+            document.querySelectorAll('.color-input').forEach(input => {
+                input.value = DEFAULT_CONFIG.COLOR;
+            });
+        });
+
+        DOM.defaultRadius.addEventListener('change', (e) => {
+            e.stopPropagation(); // Prevent event bubbling to map
+            
+            DEFAULT_CONFIG.RADIUS = parseInt(e.target.value);
+            stations.forEach(station => {
+                station.radius = DEFAULT_CONFIG.RADIUS;
+                updateStationPolygon(station);
+            });
+        });
+
+        DOM.defaultWidth.addEventListener('change', (e) => {
+            e.stopPropagation(); // Prevent event bubbling to map
+
+            const newWidth = e.target.value === '' ? '' : parseInt(e.target.value);
+            if (newWidth === '') {
+                DEFAULT_CONFIG.AZIMUTH_WIDTH = '';
+                stations.forEach(station => {
+                    station.width = '';
+                    if (station.polygon) {
+                        map.removeLayer(station.polygon);
+                        station.polygon = null;
+                    }
+                });
+            } else if (isNaN(newWidth) || newWidth < 0 || newWidth > 360) {
+                e.target.value = DEFAULT_CONFIG.AZIMUTH_WIDTH;
+                alert('Ширина азимуту має бути в діапазоні від 0 до 360 градусів.');
+            } else {
+                DEFAULT_CONFIG.AZIMUTH_WIDTH = newWidth;
+                stations.forEach(station => {
+                    station.width = DEFAULT_CONFIG.AZIMUTH_WIDTH;
+                    if (!station.polygon) {
+                        station.polygon = createAzimuthPolygon(
+                            station.lat,
+                            station.lng,
+                            station.azimuth === '' ? 0 : station.azimuth,
+                            station.radius,
+                            station.width,
+                            station.color
+                        );
+                        station.polygon.addTo(map);
+                    } else {
+                        updateStationPolygon(station);
+                    }
+                });
+            }
+        });
+
+        DOM.defaultWidth.addEventListener('input', (e) => {
+            e.stopPropagation(); // Prevent event bubbling to map
+
+            const newWidth = e.target.value === '' ? '' : parseInt(e.target.value);
+            if (newWidth === '') {
+                DEFAULT_CONFIG.AZIMUTH_WIDTH = '';
+                stations.forEach(station => {
+                    station.width = '';
+                    if (station.polygon) {
+                        map.removeLayer(station.polygon);
+                        station.polygon = null;
+                    }
+                });
+            } else if (!isNaN(newWidth) && newWidth >= 0 && newWidth <= 360) {
+                DEFAULT_CONFIG.AZIMUTH_WIDTH = newWidth;
+                stations.forEach(station => {
+                    station.width = DEFAULT_CONFIG.AZIMUTH_WIDTH;
+                    if (!station.polygon) {
+                        station.polygon = createAzimuthPolygon(
+                            station.lat,
+                            station.lng,
+                            station.azimuth === '' ? 0 : station.azimuth,
+                            station.radius,
+                            station.width,
+                            station.color
+                        );
+                        station.polygon.addTo(map);
+                    } else {
+                        updateStationPolygon(station);
+                    }
+                });
+            }
+        });
+
+        DOM.defaultPopupDistance.addEventListener('change', (e) => {
+            e.stopPropagation(); // Prevent event bubbling to map
+            
+            DEFAULT_CONFIG.POPUP_DISTANCE = parseInt(e.target.value);
+            stations.forEach(station => {
+                const popupPos = calculatePopupPosition(station.lat, station.lng, station.azimuth);
+                station.popupLat = popupPos.lat;
+                station.popupLng = popupPos.lng;
+                station.popupMarker.setLatLng([station.popupLat, station.popupLng]);
+            });
+        });
+
+        DOM.defaultBold.addEventListener('change', (e) => {
+            e.stopPropagation(); // Prevent event bubbling to map
+            
+            DEFAULT_CONFIG.FONT_WEIGHT = e.target.checked ? 'bold' : 'normal';
+            stations.forEach(station => {
+                const popupElement = station.popupMarker.getElement();
+                if (popupElement) {
+                    const infoBox = popupElement.querySelector('.info-box');
+                    if (infoBox) {
+                        infoBox.style.fontWeight = DEFAULT_CONFIG.FONT_WEIGHT;
+                    }
+                }
+            });
+        });
+
+        DOM.defaultItalic.addEventListener('change', function(e) {
+            e.stopPropagation();
+            updateFontStyle(e.target.checked);
+        });
+
+        // Optimization: Delegate events to parent container
+        document.getElementById('sidebar').addEventListener('click', function(e) {
+            e.stopPropagation();
+            
+            // Event delegation for buttons and inputs
+            if (e.target.matches('button, input')) {
+                e.stopPropagation();
+            }
+        });
+
+        // Helper function to update font style for all stations
+        function updateFontStyle(isItalic) {
+            DEFAULT_CONFIG.FONT_STYLE = isItalic ? 'italic' : 'normal';
+            stations.forEach(updateStationStyle);
+        }
+
+        // Helper function to update individual station style
+        function updateStationStyle(station) {
+            const popupElement = station.popupMarker.getElement();
+            if (!popupElement) return;
+            
+            const infoBox = popupElement.querySelector('.info-box');
+            if (infoBox) {
+                infoBox.style.fontStyle = DEFAULT_CONFIG.FONT_STYLE;
+            }
+        }
+        
+        // Prevent map click when interacting with sidebar
+        document.getElementById('sidebar').addEventListener('click', (e) => {
+            e.stopPropagation();
+        });
+
+        DOM.defaultMarkerSize.addEventListener('input', (e) => {
+            e.stopPropagation();
+            let idx = parseInt(e.target.value);
+            let size = getMarkerSizeByIndex(idx);
+            DEFAULT_CONFIG.MARKER_SIZE = size;
+            DOM.defaultMarkerSizeValue.textContent = size;
+            stations.forEach((station, i) => {
+                station.markerSize = size;
+                station.marker.setIcon(createCustomIcon(station.color, size));
+                // Оновити значення повзунка у списку станцій
+                const item = DOM.stationList.querySelector(`.marker-size-input[data-index="${i}"]`);
+                const valueSpan = DOM.stationList.querySelector(`.marker-size-value[data-index="${i}"]`) || DOM.stationList.querySelector('.marker-size-value');
+                if (item) item.value = idx;
+                if (valueSpan) valueSpan.textContent = size;
+            });
+        });
+
+        // --- Marker size pattern ---
+        const MARKER_SIZE_PATTERN = [12, 16, 20, 25, 28, 32, 36, 40, 44];
+
+        function getMarkerSizeIndex(size) {
+            // Find closest index in pattern
+            let idx = MARKER_SIZE_PATTERN.indexOf(size);
+            if (idx === -1) {
+                // fallback to nearest
+                let minDiff = Infinity, minIdx = 0;
+                for (let i = 0; i < MARKER_SIZE_PATTERN.length; i++) {
+                    let diff = Math.abs(MARKER_SIZE_PATTERN[i] - size);
+                    if (diff < minDiff) {
+                        minDiff = diff;
+                        minIdx = i;
+                    }
+                }
+                return minIdx;
+            }
+            return idx;
+        }
+
+        function getMarkerSizeByIndex(idx) {
+            return MARKER_SIZE_PATTERN[idx] || MARKER_SIZE_PATTERN[0];
+        }
+
+        // При ініціалізації DOM.defaultMarkerSize.value має відповідати індексу паттерну для початкового розміру
+        document.addEventListener('DOMContentLoaded', function () {
+            // ...existing code...
+            DOM.defaultMarkerSize.value = getMarkerSizeIndex(DEFAULT_CONFIG.MARKER_SIZE);
+            DOM.defaultMarkerSizeValue.textContent = DEFAULT_CONFIG.MARKER_SIZE;
+            // ...existing code...
+        });
+
+        DOM.defaultFontSize.addEventListener('input', (e) => {
+            e.stopPropagation(); // Prevent event bubbling to map
+
+            DEFAULT_CONFIG.FONT_SIZE = parseInt(e.target.value);
+            stations.forEach(station => {
+                const popupElement = station.popupMarker.getElement();
+                if (popupElement) {
+                    const infoBox = popupElement.querySelector('.info-box');
+                    if (infoBox) {
+                        infoBox.style.fontSize = `${DEFAULT_CONFIG.FONT_SIZE}px`;
+                    }
+                }
+            });
+        });
+
+        DOM.defaultRadius.addEventListener('input', (e) => {
+            e.stopPropagation(); // Prevent event bubbling to map
+
+            DEFAULT_CONFIG.RADIUS = parseInt(e.target.value);
+            stations.forEach(station => {
+                station.radius = DEFAULT_CONFIG.RADIUS;
+                updateStationPolygon(station);
+            });
+        });
+
+        DOM.defaultPopupDistance.addEventListener('input', (e) => {
+            e.stopPropagation(); // Prevent event bubbling to map
+
+            DEFAULT_CONFIG.POPUP_DISTANCE = parseInt(e.target.value);
+            stations.forEach(station => {
+                const popupPos = calculatePopupPosition(station.lat, station.lng, station.azimuth);
+                station.popupLat = popupPos.lat;
+                station.popupLng = popupPos.lng;
+                station.popupMarker.setLatLng([station.popupLat, station.popupLng]);
+            });
+        });
+    </script>
+</body>
+
+</html>
