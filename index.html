@@ -314,6 +314,33 @@
             opacity: 0.48;
         }
 
+        .add-station-confirm {
+            min-width: 170px;
+            font-family: Tahoma, sans-serif;
+            font-size: 12px;
+        }
+
+        .add-station-confirm-title {
+            margin-bottom: 6px;
+            font-weight: bold;
+        }
+
+        .add-station-confirm-actions {
+            display: flex;
+            gap: 6px;
+        }
+
+        .add-station-confirm-actions button {
+            flex: 1;
+            margin: 0;
+            padding: 5px 7px;
+            font-size: 12px;
+        }
+
+        .add-station-cancel {
+            background-color: #777;
+        }
+
         /* --- MOBILE OPTIMIZATION --- */
         @media (max-width: 900px) {
             #sidebar {
@@ -1141,22 +1168,9 @@
             }
         }
 
-        // Модифікація обробника кліку на карті для автоматичного заповнення адреси
-        function enhanceMapClickHandler() {
-            map.off('click'); // Видалення всіх попередніх обробників
-            map.on('click', async function (e) {
-                const { lat, lng } = e.latlng;
-                const address = document.getElementById('default-geocode').checked
-                    ? await reverseGeocode(lat, lng) // Використання кешу для уникнення зайвих запитів
-                    : '';
-                addStation(lat, lng, 0, DEFAULT_CONFIG.RADIUS, DEFAULT_CONFIG.AZIMUTH_WIDTH, DEFAULT_CONFIG.COLOR, address);
-            });
-        }
-
         // Ініціалізація функціоналу геокодування
         document.addEventListener('DOMContentLoaded', function () {
             initGeocoding();
-            enhanceMapClickHandler();
         });
 
         // Функція для серіалізації даних станцій
@@ -2231,12 +2245,76 @@
             }
         });
 
-        map.on('click', async function (e) {
+        let pendingStationPopup = null;
+
+        function clearPendingStationPopup() {
+            if (pendingStationPopup) {
+                map.removeLayer(pendingStationPopup);
+                pendingStationPopup = null;
+            }
+        }
+
+        async function addStationFromMapClick(lat, lng) {
+            const geocodeEnabled = document.getElementById('default-geocode').checked;
+            const indicator = document.getElementById('geocode-indicator');
+
+            if (geocodeEnabled) {
+                indicator.style.display = 'block';
+            }
+
+            const address = geocodeEnabled ? await reverseGeocode(lat, lng) : '';
+            indicator.style.display = 'none';
+
+            const stationIndex = stations.length;
+            addStation(lat, lng, 0, DEFAULT_CONFIG.RADIUS, DEFAULT_CONFIG.AZIMUTH_WIDTH, DEFAULT_CONFIG.COLOR, address);
+
+            const textarea = DOM.stationList.querySelector(`.address-input[data-index="${stationIndex}"]`);
+            if (textarea) {
+                textarea.value = address;
+                const station = stations[stationIndex];
+                station.address = address;
+                station.popup = createPopup(station.address, station.azimuth, station.color, station.metadata);
+                station.popupMarker.setIcon(station.popup);
+            }
+        }
+
+        function showAddStationConfirmation(lat, lng) {
+            clearPendingStationPopup();
+
+            const popupContent = document.createElement('div');
+            popupContent.className = 'add-station-confirm';
+            popupContent.innerHTML = `
+                <div class="add-station-confirm-title">Додати БС тут?</div>
+                <div class="add-station-confirm-actions">
+                    <button type="button" class="add-station-accept">Додати</button>
+                    <button type="button" class="add-station-cancel">Скасувати</button>
+                </div>
+            `;
+
+            popupContent.querySelector('.add-station-accept').addEventListener('click', async (event) => {
+                event.stopPropagation();
+                clearPendingStationPopup();
+                await addStationFromMapClick(lat, lng);
+            });
+
+            popupContent.querySelector('.add-station-cancel').addEventListener('click', (event) => {
+                event.stopPropagation();
+                clearPendingStationPopup();
+            });
+
+            pendingStationPopup = L.popup({ closeButton: false, autoClose: true, closeOnClick: false })
+                .setLatLng([lat, lng])
+                .setContent(popupContent)
+                .openOn(map);
+        }
+
+        map.on('click', function (e) {
             // Check if the click originated from a UI element or after a recent drag
             if (e.originalEvent.target.closest('#sidebar') || 
                 e.originalEvent.target.closest('#button-container') ||
                 e.originalEvent.target.closest('.leaflet-control') ||
                 e.originalEvent.target.closest('.info-box') ||
+                e.originalEvent.target.closest('.add-station-confirm') ||
                 e.originalEvent.target.closest('.search-container') ||
                 isRecentlyDragged) {
                 return; // Don't add station if clicking on UI elements or after dragging
@@ -2253,35 +2331,7 @@
                 return; // Do not create a new station
             }
 
-            // Show geocoding indicator if geocoding is enabled
-            const geocodeEnabled = document.getElementById('default-geocode').checked;
-            const indicator = document.getElementById('geocode-indicator');
-            
-            if (geocodeEnabled) {
-                indicator.style.display = 'block';
-            }
-            
-            // Get address only if geocoding is enabled
-            const address = geocodeEnabled ? await reverseGeocode(lat, lng) : '';
-            
-            // Hide indicator after geocoding
-            indicator.style.display = 'none';
-
-            // Add station with obtained address
-            const defaultAzimuth = 0; // Valid default value in range 0-360
-            const stationIndex = stations.length; // Index for the new station
-            addStation(lat, lng, defaultAzimuth, DEFAULT_CONFIG.RADIUS, DEFAULT_CONFIG.AZIMUTH_WIDTH, DEFAULT_CONFIG.COLOR, address);
-
-            // Update the textarea in the settings with the geocoded address
-            const textarea = DOM.stationList.querySelector(`.address-input[data-index="${stationIndex}"]`);
-            if (textarea) {
-                textarea.value = address;
-                // Update the popup on the map with the same address
-                const station = stations[stationIndex];
-                station.address = address;
-                station.popup = createPopup(station.address, station.azimuth, station.color, station.metadata);
-                station.popupMarker.setIcon(station.popup);
-            }
+            showAddStationConfirmation(lat, lng);
         });
 
         map.on('zoomend', () => {
